@@ -35,10 +35,13 @@ em_get_dst_port_ipv4xN(struct lcore_conf *qconf, struct rte_mbuf *m[],
 		key_array[i] = &key[i];
 	}
 
+	// 批量查找多个键在hash表中得到数据
+	// ret返回的是key在hash表中的索引id
 	rte_hash_lookup_bulk(qconf->ipv4_lookup_struct, &key_array[0],
 			     EM_HASH_LOOKUP_COUNT, ret);
 
 	for (i = 0; i < EM_HASH_LOOKUP_COUNT; i++) {
+		// ret[i]<0，表明rte_hash_lookup_bulk异常，数据从原端口原路返回
 		dst_port[i] = ((ret[i] < 0) ?
 				portid : ipv4_l3fwd_out_if[ret[i]]);
 
@@ -194,11 +197,13 @@ l3fwd_em_send_packets(int nb_rx, struct rte_mbuf **pkts_burst,
 	 */
 	int32_t n = RTE_ALIGN_FLOOR(nb_rx, EM_HASH_LOOKUP_COUNT);
 
+	// 数据预先缓存到cpu的缓存中
 	for (j = 0; j < EM_HASH_LOOKUP_COUNT && j < nb_rx; j++) {
 		rte_prefetch0(rte_pktmbuf_mtod(pkts_burst[j],
 					       struct rte_ether_hdr *) + 1);
 	}
 
+	// 批量处理，提高性能，特别是通过减少函数调用次数、利用数据局部性和并行处理能力来加速数据包处理过程
 	for (j = 0; j < n; j += EM_HASH_LOOKUP_COUNT) {
 
 		uint32_t pkt_type = RTE_PTYPE_L3_MASK |
@@ -213,13 +218,14 @@ l3fwd_em_send_packets(int nb_rx, struct rte_mbuf **pkts_burst,
 
 		for (i = 0, pos = j + EM_HASH_LOOKUP_COUNT;
 		     i < EM_HASH_LOOKUP_COUNT && pos < nb_rx; i++, pos++) {
+				// 提前把下一次循环要处理的数据先放到cpu的缓存中
 			rte_prefetch0(rte_pktmbuf_mtod(
 					pkts_burst[pos],
 					struct rte_ether_hdr *) + 1);
 		}
 
 		if (tcp_or_udp && (l3_type == RTE_PTYPE_L3_IPV4)) {
-
+			// 判断条件表明这一波数据全是ipv4+tcp/udp
 			em_get_dst_port_ipv4xN(qconf, &pkts_burst[j], portid,
 					       &dst_port[j]);
 
@@ -227,14 +233,14 @@ l3fwd_em_send_packets(int nb_rx, struct rte_mbuf **pkts_burst,
 
 			em_get_dst_port_ipv6xN(qconf, &pkts_burst[j], portid,
 					       &dst_port[j]);
-
+			// 判断条件表明这一波数据全是ipv6+tcp/udp
 		} else {
 			for (i = 0; i < EM_HASH_LOOKUP_COUNT; i++)
 				dst_port[j + i] = em_get_dst_port(qconf,
 						pkts_burst[j + i], portid);
 		}
 	}
-
+	// 对于余下的数据，直接调用em_get_dst_port即可
 	for (; j < nb_rx; j++)
 		dst_port[j] = em_get_dst_port(qconf, pkts_burst[j], portid);
 

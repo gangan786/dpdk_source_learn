@@ -43,7 +43,7 @@
 
 #define FWDSTEP	4
 
-/* replace first 12B of the ethernet header. */
+/* replace first 12B of the ethernet header. 0x3f = 0011 1111 */
 #define	MASK_ETH 0x3f
 
 /* Hash parameters. */

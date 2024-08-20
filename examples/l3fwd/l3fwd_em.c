@@ -257,6 +257,8 @@ em_get_ipv4_dst_port(void *ipv4_hdr, uint16_t portid, void *lookup_struct)
 	/*
 	 * Get 5 tuple: dst port, src port, dst IP address,
 	 * src IP address and protocol.
+	 感觉这里的mask0的掩码配置不太对，ipv4_hdr现在指向time_to_live，
+	 mask0掩码中1的位置似乎并没有对准dst IP address，src IP address， protocol.
 	 */
 	key.xmm = em_mask_key(ipv4_hdr, mask0.x);
 
@@ -354,8 +356,14 @@ populate_ipv4_few_flow_into_table(const struct rte_hash *h)
 	uint32_t i;
 	int32_t ret;
 
-	mask0 = (rte_xmm_t){.u32 = {BIT_8_TO_15, ALL_32_BITS,
-				ALL_32_BITS, ALL_32_BITS} };
+	mask0 = (rte_xmm_t){
+		.u32 = {
+			BIT_8_TO_15, 
+			ALL_32_BITS,
+			ALL_32_BITS, 
+			ALL_32_BITS
+		} 
+	};
 
 	for (i = 0; i < IPV4_L3FWD_EM_NUM_ROUTES; i++) {
 		struct ipv4_l3fwd_em_route  entry;
@@ -564,6 +572,10 @@ em_check_ptype(int portid)
 }
 
 
+/**
+判断以太帧携带的是什么数据：ipv4 or ipv6 or tcp or udp
+并把判断的结果放入ret_mbuf->packet_type
+*/
 static inline void
 em_parse_ptype(struct rte_mbuf *m)
 {

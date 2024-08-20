@@ -16,7 +16,9 @@
 static inline void
 processx4_step3(struct rte_mbuf *pkt[FWDSTEP], uint16_t dst_port[FWDSTEP])
 {
+	// 保存数据包的起始地址
 	__m128i te[FWDSTEP];
+	// 保存目的端口的mac地址
 	__m128i ve[FWDSTEP];
 	__m128i *p[FWDSTEP];
 
@@ -144,6 +146,7 @@ send_packets_multi(struct lcore_conf *qconf, struct rte_mbuf **pkts_burst,
 		lp = pnum;
 		lp[0] = 1;
 
+		// 先行处理四个包的mac地址和IP地址
 		processx4_step3(pkts_burst, dst_port);
 
 		/* dp1: <d[0], d[1], d[2], d[3], ... > */

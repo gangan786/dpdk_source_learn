@@ -3,6 +3,7 @@
  * Copyright(c) 2017-2018 Linaro Limited.
  */
 
+# include "l3fwd.h"
 
 #ifndef _L3FWD_COMMON_H_
 #define _L3FWD_COMMON_H_
@@ -188,6 +189,7 @@ send_packetsx4(struct lcore_conf *qconf, uint16_t port, struct rte_mbuf *m[],
 	/*
 	 * If TX buffer for that queue is empty, and we have enough packets,
 	 * then send them straightway.
+	 当需要发送数据的时候，如果数据量比较小，需要先放到缓存中，等到缓存满了，再发送
 	 */
 	if (num >= MAX_TX_BURST && len == 0) {
 		n = rte_eth_tx_burst(port, qconf->tx_queue_id[port], m, num);
@@ -204,27 +206,35 @@ send_packetsx4(struct lcore_conf *qconf, uint16_t port, struct rte_mbuf *m[],
 	 */
 
 	n = len + num;
+	// n不能超过MAX_PKT_BURST，超过则获取余量看看还有多少空间能发送，否则直接按num发送
 	n = (n > MAX_PKT_BURST) ? MAX_PKT_BURST - len : num;
 
 	j = 0;
 	switch (n % FWDSTEP) {
-	while (j < n) {
-	case 0:
-		qconf->tx_mbufs[port].m_table[len + j] = m[j];
-		j++;
-		/* fallthrough */
-	case 3:
-		qconf->tx_mbufs[port].m_table[len + j] = m[j];
-		j++;
-		/* fallthrough */
-	case 2:
-		qconf->tx_mbufs[port].m_table[len + j] = m[j];
-		j++;
-		/* fallthrough */
-	case 1:
-		qconf->tx_mbufs[port].m_table[len + j] = m[j];
-		j++;
-	}
+		// 将要发送的数据包放入缓存中
+		/*
+		ex: n=7, n%4=3
+		最开始的循环是从对应的case进入，例如7%4=3，则j=0，进入case 3，
+		由于没有break语句，会从一直往下走：case2 -> case1，然后由于循环的原因，这里满足j<n，
+		会从while的开始处执行，则case=0的位置
+		*/
+		while (j < n) { 
+			case 0:
+				qconf->tx_mbufs[port].m_table[len + j] = m[j];
+				j++;
+				/* fallthrough */
+			case 3:
+				qconf->tx_mbufs[port].m_table[len + j] = m[j];
+				j++;
+				/* fallthrough */
+			case 2:
+				qconf->tx_mbufs[port].m_table[len + j] = m[j];
+				j++;
+				/* fallthrough */
+			case 1:
+				qconf->tx_mbufs[port].m_table[len + j] = m[j];
+				j++;
+		}
 	}
 
 	len += n;
@@ -232,6 +242,8 @@ send_packetsx4(struct lcore_conf *qconf, uint16_t port, struct rte_mbuf *m[],
 	/* enough pkts to be sent */
 	if (unlikely(len == MAX_PKT_BURST)) {
 
+		// 这里的逻辑表明，缓存区数据已满，直接发送 
+		// l3fwd.h
 		send_burst(qconf, MAX_PKT_BURST, port);
 
 		/* copy rest of the packets into the TX buffer. */
@@ -241,23 +253,23 @@ send_packetsx4(struct lcore_conf *qconf, uint16_t port, struct rte_mbuf *m[],
 
 		j = 0;
 		switch (len % FWDSTEP) {
-		while (j < len) {
-		case 0:
-			qconf->tx_mbufs[port].m_table[j] = m[n + j];
-			j++;
-			/* fallthrough */
-		case 3:
-			qconf->tx_mbufs[port].m_table[j] = m[n + j];
-			j++;
-			/* fallthrough */
-		case 2:
-			qconf->tx_mbufs[port].m_table[j] = m[n + j];
-			j++;
-			/* fallthrough */
-		case 1:
-			qconf->tx_mbufs[port].m_table[j] = m[n + j];
-			j++;
-		}
+			while (j < len) {
+				case 0:
+					qconf->tx_mbufs[port].m_table[j] = m[n + j];
+					j++;
+					/* fallthrough */
+				case 3:
+					qconf->tx_mbufs[port].m_table[j] = m[n + j];
+					j++;
+					/* fallthrough */
+				case 2:
+					qconf->tx_mbufs[port].m_table[j] = m[n + j];
+					j++;
+					/* fallthrough */
+				case 1:
+					qconf->tx_mbufs[port].m_table[j] = m[n + j];
+					j++;
+			}
 		}
 	}
 

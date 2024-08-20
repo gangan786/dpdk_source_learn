@@ -77,6 +77,7 @@ volatile bool force_quit;
 uint64_t dest_eth_addr[RTE_MAX_ETHPORTS];
 struct rte_ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
 
+/* 以port_id为下标，保存每个端口的mac地址 */
 xmm_t val_eth[RTE_MAX_ETHPORTS];
 
 /* mask of enabled ports */
@@ -1314,6 +1315,7 @@ main(int argc, char **argv)
 		for (queue = 0; queue < qconf->n_rx_queue; ++queue) {
 			portid = qconf->rx_queue_list[queue].port_id;
 			queueid = qconf->rx_queue_list[queue].queue_id;
+			// 添加回调函数
 			if (prepare_ptype_parser(portid, queueid) == 0)
 				rte_exit(EXIT_FAILURE, "ptype check fails\n");
 		}
