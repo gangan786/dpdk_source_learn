@@ -73,6 +73,7 @@ struct l3fwd_event_resources {
 	uint8_t tx_mode_q;
 	uint8_t deq_depth;
 	uint8_t has_burst;
+	/* false表示poll 模式，true表示eventdev 模式 */
 	uint8_t enabled;
 	uint8_t eth_rx_queues;
 };

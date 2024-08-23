@@ -639,6 +639,20 @@ em_main_loop(__rte_unused void *dummy)
 	uint8_t queueid;
 	uint16_t portid;
 	struct lcore_conf *qconf;
+	/**
+	该C函数的作用是计算一个时间戳计数器（TSC）的阈值，用于在特定时间间隔内进行burst传输排水。
+	函数首先调用rte_get_tsc_hz()获取时间戳计数器的频率，然后执行一系列运算。
+	具体步骤如下：
+
+	1.rte_get_tsc_hz()：获取时间戳计数器的频率。
+	2.US_PER_S - 1：US_PER_S表示每秒的微秒数（通常为1,000,000），
+	 减1是为了在整数除法中实现向上取整。这是因为整数除法会向下取整，
+	 为了得到正确的向上取整效果，会在除法前加上除数减一。
+	3.整体计算：将TSC频率加上调整后的微秒数再除以US_PER_S，确保结果是每微秒的TSC计数值。
+	 然后乘以BURST_TX_DRAIN_US（burst传输排水所需的微秒数），得到排水周期内的TSC计数值，即drain_tsc。
+
+	加US_PER_S - 1是为了确保计算结果正确向上取整，避免在整数除法中丢失精度。
+	 */
 	const uint64_t drain_tsc = (rte_get_tsc_hz() + US_PER_S - 1) /
 		US_PER_S * BURST_TX_DRAIN_US;
 
@@ -672,7 +686,7 @@ em_main_loop(__rte_unused void *dummy)
 		 */
 		diff_tsc = cur_tsc - prev_tsc;
 		if (unlikely(diff_tsc > drain_tsc)) {
-
+			// 每100微秒，循环就会在这里清空一次发送缓存将数据发送出去，保证数据的及时发送
 			for (i = 0; i < qconf->n_tx_port; ++i) {
 				portid = qconf->tx_port_id[i];
 				if (qconf->tx_mbufs[portid].len == 0)

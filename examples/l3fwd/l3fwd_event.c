@@ -18,6 +18,9 @@ print_ethaddr(const char *name, const struct rte_ether_addr *eth_addr)
 	printf("%s%s", name, buf);
 }
 
+/**
+	单例模式获取l3fwd_event_resources
+ */
 struct l3fwd_event_resources *
 l3fwd_get_eventdev_rsrc(void)
 {
