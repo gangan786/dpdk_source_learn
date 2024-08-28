@@ -75,16 +75,9 @@ volatile bool force_quit;
 
 /* ethernet addresses of ports */
 uint64_t dest_eth_addr[RTE_MAX_ETHPORTS];
-
-/* 以port_id为下标，保存每个port_id对应端口的mac地址 */
 struct rte_ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
 
-/* 
-以port_id为下标，保存每个port_id对应端口的mac地址 
-其实这里使用port_id对应的mac地址作为目的mac，可以看作是这个mac代表的端口，具有网络处理的能力，即有网卡监听mac地址和IP
-不同于需要ARP获取目标IP的mac地址，需要维护一个arp表，这里只是一个简单的示例不需要考虑ARP
-不同于像我们常见的接入层交换机的工作模式
-*/
+/* 以port_id为下标，保存每个端口的mac地址 */
 xmm_t val_eth[RTE_MAX_ETHPORTS];
 
 /* mask of enabled ports */
@@ -428,9 +421,6 @@ parse_config(const char *q_arg)
 	return 0;
 }
 
-/*
-``--eth-dest=X,MM:MM:MM:MM:MM:MM:`` Optional, ethernet destination for port X.
-*/
 static void
 parse_eth_dest(const char *optarg)
 {
@@ -1282,6 +1272,7 @@ main(int argc, char **argv)
 	if (evt_rsrc->enabled) {
 		l3fwd_event_resource_setup(&port_conf);
 		if (l3fwd_em_on)
+			// 在eventdev的模式下，指定main_loop方法为eventdev专用的
 			l3fwd_lkp.main_loop = evt_rsrc->ops.em_event_loop;
 		else
 			l3fwd_lkp.main_loop = evt_rsrc->ops.lpm_event_loop;

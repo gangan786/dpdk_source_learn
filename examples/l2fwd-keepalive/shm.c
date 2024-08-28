@@ -71,12 +71,17 @@ struct rte_keepalive_shm *rte_keepalive_shm_create(void)
 return NULL;
 }
 
+/*
+由定时器触发rte_keepalive_dispatch_pings方法的调用，
+触发调用以后就会走到下面这个方法
+*/
 void rte_keepalive_relayed_state(struct rte_keepalive_shm *shm,
 	const int id_core, const enum rte_keepalive_state core_state,
 	__rte_unused uint64_t last_alive)
 {
 	int count;
 
+	// 维护core的状态	
 	shm->core_state[id_core] = core_state;
 	shm->core_last_seen_times[id_core] = last_alive;
 
@@ -91,6 +96,7 @@ void rte_keepalive_relayed_state(struct rte_keepalive_shm *shm,
 				strerror(errno));
 			return;
 		}
+		// 判断semaphore的值
 		if (count > 1)
 			return;
 

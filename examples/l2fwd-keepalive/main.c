@@ -76,6 +76,7 @@ struct lcore_queue_conf {
 } __rte_cache_aligned;
 struct lcore_queue_conf lcore_queue_conf[RTE_MAX_LCORE];
 
+// 缓存着即将发送的数据包
 struct rte_eth_dev_tx_buffer *tx_buffer[RTE_MAX_ETHPORTS];
 
 static struct rte_eth_conf port_conf = {
@@ -184,6 +185,7 @@ l2fwd_simple_forward(struct rte_mbuf *m, unsigned portid)
 	rte_ether_addr_copy(&l2fwd_ports_eth_addr[dst_port], &eth->s_addr);
 
 	buffer = tx_buffer[dst_port];
+	// 数据暂存在缓存buffer中，当数据包填充满buffer后，统一再rte_eth_tx_buffer_flush发送
 	sent = rte_eth_tx_buffer(dst_port, 0, buffer, m);
 	if (sent)
 		port_statistics[dst_port].tx += sent;
@@ -228,6 +230,7 @@ l2fwd_main_loop(void)
 
 	while (!terminate_signal_received) {
 		/* Keepalive heartbeat */
+		// 设置keepalive为RTE_KA_STATE_ALIVE，表明当前线程是工作的
 		rte_keepalive_mark_alive(rte_global_keepalive_info);
 
 		cur_tsc = rte_rdtsc();
@@ -272,6 +275,7 @@ l2fwd_main_loop(void)
 
 			for (j = 0; j < nb_rx; j++) {
 				m = pkts_burst[j];
+				// 将数据提前加载到cpu cache中，加速处理
 				rte_prefetch0(rte_pktmbuf_mtod(m, void *));
 				l2fwd_simple_forward(m, portid);
 			}
@@ -508,6 +512,7 @@ dead_core(__rte_unused void *ptr_data, const int id_core)
 	printf("Dead core %i - restarting..\n", id_core);
 	if (rte_eal_get_lcore_state(id_core) == FINISHED) {
 		rte_eal_wait_lcore(id_core);
+		// 重新启动loop循环，顾名思义keepalive
 		rte_eal_remote_launch(l2fwd_launch_one_lcore, NULL, id_core);
 	} else {
 		printf("..false positive!\n");
@@ -756,17 +761,22 @@ main(int argc, char **argv)
 
 	ka_shm = NULL;
 	if (check_period > 0) {
+		// 创建用于存活检测的共享内存
 		ka_shm = rte_keepalive_shm_create();
 		if (ka_shm == NULL)
 			rte_exit(EXIT_FAILURE,
 				"rte_keepalive_shm_create() failed");
+		// 创建keepalive实例，当检测Dead状态，回调dead_core函数通知
 		rte_global_keepalive_info =
 			rte_keepalive_create(&dead_core, ka_shm);
 		if (rte_global_keepalive_info == NULL)
 			rte_exit(EXIT_FAILURE, "init_keep_alive() failed");
+		// 注册存活检测回调函数
 		rte_keepalive_register_relay_callback(rte_global_keepalive_info,
 			relay_core_state, ka_shm);
+		// 初始化定时器对象
 		rte_timer_init(&hb_timer);
+		// 设置定时器每check_period毫秒触发回调函数：rte_keepalive_dispatch_pings
 		if (rte_timer_reset(&hb_timer,
 				(check_period * rte_get_timer_hz()) / 1000,
 				PERIODICAL,
@@ -801,6 +811,7 @@ main(int argc, char **argv)
 				NULL,
 				lcore_id
 				);
+			// 这他妈还藏了一个
 			rte_keepalive_register_core(rte_global_keepalive_info,
 				lcore_id);
 		}

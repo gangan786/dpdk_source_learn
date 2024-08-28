@@ -88,6 +88,7 @@ rte_keepalive_dispatch_pings(__rte_unused void *ptr_timer,
 			keepcfg->live_data[idx_core].core_state =
 			    RTE_KA_STATE_GONE;
 			print_trace("Core died. ", keepcfg, idx_core);
+			// 调用rte_keepalive_create设置的回调函数
 			if (keepcfg->callback)
 				keepcfg->callback(
 					keepcfg->callback_data,
@@ -104,6 +105,7 @@ rte_keepalive_dispatch_pings(__rte_unused void *ptr_timer,
 		case RTE_KA_STATE_SLEEP: /* Idled core */
 			break;
 		}
+		// 调用rte_keepalive_register_relay_callback设置的回调函数
 		if (keepcfg->relay_callback)
 			keepcfg->relay_callback(
 				keepcfg->relay_callback_data,
